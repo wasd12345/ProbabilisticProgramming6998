@@ -47,7 +47,7 @@ def default_schedule(model):
 
 def default_config(model):
   config = tools.AttrDict()
-  config.num_inputs = 8
+  config.num_inputs = 19 #8 #THey use 8 features. But what features do they use??? Instead, we will use our own set, for now happens to be 19 since there is some one hot encoding.
   config.layer_sizes = [50, 50]
   if model == 'bbb':
     config.divergence_scale = 1.0
@@ -102,7 +102,8 @@ def main(args):
   if args.replot:
     plot_results(args)
     return
-  warnings.filterwarnings('ignore', category=DeprecationWarning)  # TensorFlow.
+  #warnings.filterwarnings('ignore', category=DeprecationWarning)  # TensorFlow.
+  warnings.filterwarnings('ignore')#Just igner everything. For the features we are doing there is a left=right issue.
   dataset = datasets.load_numpy_dataset(
       args.dataset, args.train_amount, args.test_amount)
   models_ = [
