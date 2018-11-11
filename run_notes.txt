@@ -3,11 +3,18 @@ conda create -n ProbPro python=3.6
 #had to install few basic packages, installed latest tensorflow_probability
 
 
+
 #Working on toy dataset:
 (base) C:\Users\AZ\Desktop\probprog_ncp\ProbabilisticProgramming6998\ncp>python -m ncp.scripts.toy_active --seeds 20 --logdir logs
 
-#Working on flights data:
+
+
+#Working on flights data: first make the datasets:
 cd "C:\Users\AZ\Desktop\probprog_ncp\ProbabilisticProgramming6998"
-python -m ncp.scripts.flights_active --seeds 5 --dataset ncp/datasets/flights --logdir logs_flights
+mkdir "logs_flights"
+python ncp\datasets\reformat_flights_data.py
+
+#Run on the new flights data
+python -m ncp.scripts.flights_active --seeds 5 --dataset ncp\datasets\flights --logdir logs_flights
 #Trying to do a passive learning schedule:
-python -m ncp.scripts.flights_active --seeds 5 --dataset ncp/datasets/flights --logdir logs_flights --schedule "passive_schedule"
+python -m ncp.scripts.flights_active --seeds 5 --dataset ncp\datasets\flights --logdir logs_flights --schedule "passive_schedule"
