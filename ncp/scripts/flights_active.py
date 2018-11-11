@@ -45,6 +45,23 @@ def default_schedule(model):
   return config
 
 
+def passive_schedule(model):
+  config = tools.AttrDict()
+  config.num_epochs = 2000
+  config.num_initial =  10000#999999999 #All data [or as much until memory error]
+  config.num_select = 10# 999999999 #All data
+  config.select_after_epochs = range(0) #or range(99999998,99999999) #Don't go through selection process
+  config.eval_after_epochs = range(0, 2000, 50)
+  config.log_after_epochs = range(0, 2000, 500)
+  config.visualize_after_epochs = range(50, 2000, 500)
+  config.batch_size = 64
+  config.temperature = 0.5
+  config.filetype = 'png'
+  if model == 'det':
+    config.has_uncertainty = False
+  return config
+
+
 def default_config(model):
   config = tools.AttrDict()
   config.num_inputs = 19 #8 #THey use 8 features. But what features do they use??? Instead, we will use our own set, for now happens to be 19 since there is some one hot encoding.

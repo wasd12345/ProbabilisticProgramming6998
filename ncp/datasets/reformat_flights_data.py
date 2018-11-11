@@ -20,11 +20,12 @@ import os
 #!!!!! Number of features is hardcoded in Tran et al.'s config file.
 #!!!!! Manually edit flights_active.py, "config.num_inputs = {}" line for Nfeatures
 
-PATH_TO_FLIGHTS_DATA = r'C:\Users\AZ\Desktop\probprog_ncp\ncp\ncp\datasets\flights.csv' #downloaded data
-NP_SAVE_DIR = r'C:\Users\AZ\Desktop\probprog_ncp\ncp\ncp\datasets'
+PATH_TO_FLIGHTS_DATA = r"C:\Users\AZ\Desktop\probprog_ncp\ProbabilisticProgramming6998\ncp\datasets\flights.csv" #downloaded data
+NP_SAVE_DIR = r'C:\Users\AZ\Desktop\probprog_ncp\ProbabilisticProgramming6998\ncp\datasets'
 DATASET_PREFIX = 'flights'
 NROWS = 10000
 TEST_PCT = .20
+SPLIT_MODE = 'sequential'   #'sequential' #'random'
 RANDOM_SEED = 12345
 usecols = ['YEAR', 'MONTH', 'DAY', 'DAY_OF_WEEK', 'AIRLINE', 
            #'FLIGHT_NUMBER', 'TAIL_NUMBER', 
@@ -96,7 +97,17 @@ The data set path should be a file prefix for four Numpy files named
 """
 
 #Randomly split into train, test sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_PCT)
+#Doing uncorrelated train-test split:
+if SPLIT_MODE == 'random':
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_PCT)
+#vs. what we actually want to try here with temporally different in-distribution vs. OOD:
+elif SPLIT_MODE == 'sequential':
+    split_ind = int(TEST_PCT * len(df))
+    X_train = X[:split_ind]
+    X_test = X[split_ind:]
+    y_train = y[:split_ind]
+    y_test = y[split_ind:]    
+
 y_train = y_train.reshape(-1,1)
 y_test = y_test.reshape(-1,1)
 #print(X_train, X_test, y_train, y_test)
