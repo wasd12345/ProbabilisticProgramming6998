@@ -14,3 +14,4 @@
 
 from .numpy_dataset import load_numpy_dataset
 from .toy import generate_vargrad_dataset
+from .mnist import load_mnist

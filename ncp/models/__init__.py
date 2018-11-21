@@ -16,3 +16,4 @@ from . import bbb
 from . import bbb_ncp
 from . import det
 from . import det_mix_ncp
+from . import bbb_mnist

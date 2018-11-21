@@ -23,8 +23,11 @@ from ncp import tools
 def network(inputs, config):
   init_std = np.log(np.exp(config.weight_std) - 1).astype(np.float32)
   hidden = inputs
+  # Define hidden layers according to config.layer_sizes
   for size in config.layer_sizes:
     hidden = tf.layers.dense(hidden, size, tf.nn.leaky_relu)
+
+  #Define posterior distribution on weights as a Normal distribution with initial parameters 0 and config.weight_std
   kernel_posterior = tfd.Independent(tfd.Normal(
       tf.get_variable(
           'kernel_mean', (hidden.shape[-1].value, 1), tf.float32,
@@ -32,6 +35,7 @@ def network(inputs, config):
       tf.nn.softplus(tf.get_variable(
           'kernel_std', (hidden.shape[-1].value, 1), tf.float32,
           tf.constant_initializer(init_std)))), 2)
+  #Define prior distribution on weights as Normal distribution
   kernel_prior = tfd.Independent(tfd.Normal(
       tf.zeros_like(kernel_posterior.mean()),
       tf.zeros_like(kernel_posterior.mean()) + tf.nn.softplus(init_std)), 2)
@@ -41,15 +45,21 @@ def network(inputs, config):
   tf.add_to_collection(
       tf.GraphKeys.REGULARIZATION_LOSSES,
       tfd.kl_divergence(kernel_posterior, kernel_prior))
+
+  #Create final bayesian layer which computes the mean
   mean = tfp.layers.DenseReparameterization(
       1,
       kernel_prior_fn=lambda *args, **kwargs: kernel_prior,
       kernel_posterior_fn=lambda *args, **kwargs: kernel_posterior,
       bias_prior_fn=lambda *args, **kwargs: bias_prior,
       bias_posterior_fn=lambda *args, **kwargs: bias_posterior)(hidden)
+
+  #Compute distribution of the mean
   mean_dist = tfd.Normal(
       tf.matmul(hidden, kernel_posterior.mean()) + bias_posterior.mean(),
-      tf.sqrt(tf.matmul(hidden ** 2, kernel_posterior.variance())))
+      tf.sqrt(tf.matmul(hidden ** 2, kernel_posterior.variance()))) 
+
+  #Compute standard deviation through final non-bayesian dense layer (in parallel with mean layer)
   std = tf.layers.dense(hidden, 1, tf.nn.softplus) + 1e-6
   data_dist = tfd.Normal(mean, std)
   return data_dist, mean_dist

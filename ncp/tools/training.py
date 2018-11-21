@@ -29,7 +29,12 @@ def run_experiment(
     select_after_epochs, eval_after_epochs, log_after_epochs,
     visualize_after_epochs, batch_size, temperature=0.5,
     has_uncertainty=True, drop_remainder=True, evaluate_unseen_train=False,
-    filetype='pdf', seed=0):
+    is_mnist = False, filetype='pdf', seed=0):
+  '''
+  Added 'is_mnist' flag, needed to for the logging to work properly
+  (as bbb_mnist.py, at least for the moment, does not output data_mean, data_noise or data_uncertainty
+  NOT IMPLEMENTED YET
+  '''
 
   if drop_remainder:
     assert num_initial >= batch_size

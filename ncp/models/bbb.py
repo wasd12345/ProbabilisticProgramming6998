@@ -28,10 +28,10 @@ def network(inputs, config):
   kernel_posterior = tfd.Independent(tfd.Normal(
       tf.get_variable(
           'kernel_mean', (hidden.shape[-1].value, 1), tf.float32,
-          tf.random_normal_initializer(0, config.weight_std)),
+          tf.random_normal_initializer(0, config.weight_std)), #initializes mean of weights in final layer. This is the only 'bayesian' layer.
       tf.nn.softplus(tf.get_variable(
           'kernel_std', (hidden.shape[-1].value, 1), tf.float32,
-          tf.constant_initializer(init_std)))), 2)
+          tf.constant_initializer(init_std)))), 2) #initializes std of weights in final layer
   kernel_prior = tfd.Independent(tfd.Normal(
       tf.zeros_like(kernel_posterior.mean()),
       tf.zeros_like(kernel_posterior.mean()) + tf.nn.softplus(init_std)), 2)
@@ -40,8 +40,8 @@ def network(inputs, config):
       'bias_mean', (1,), tf.float32, tf.constant_initializer(0.0)))
   tf.add_to_collection(
       tf.GraphKeys.REGULARIZATION_LOSSES,
-      tfd.kl_divergence(kernel_posterior, kernel_prior))
-  mean = tfp.layers.DenseReparameterization(
+      tfd.kl_divergence(kernel_posterior, kernel_prior)) #adds loss to collection
+  mean = tfp.layers.DenseReparameterization( #ensures the kernels and biases are drawn from distributions
       1,
       kernel_prior_fn=lambda *args, **kwargs: kernel_prior,
       kernel_posterior_fn=lambda *args, **kwargs: kernel_posterior,
@@ -61,7 +61,7 @@ def define_graph(config):
   targets = tf.placeholder(tf.float32, [None, 1])
   num_visible = tf.placeholder(tf.int32, [])
   batch_size = tf.shape(inputs)[0]
-  data_dist, mean_dist = network_tpl(inputs)
+  data_dist, mean_dist = network_tpl(inputs) #output from network
   assert len(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
   divergence = sum([
       tf.reduce_sum(tensor) for tensor in

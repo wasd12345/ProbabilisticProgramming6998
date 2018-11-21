@@ -20,8 +20,8 @@ import os
 #!!!!! Number of features is hardcoded in Tran et al.'s config file.
 #!!!!! Manually edit flights_active.py, "config.num_inputs = {}" line for Nfeatures
 
-PATH_TO_FLIGHTS_DATA = r"C:\Users\AZ\Desktop\probprog_ncp\ProbabilisticProgramming6998\ncp\datasets\flights.csv" #downloaded data
-NP_SAVE_DIR = r'C:\Users\AZ\Desktop\probprog_ncp\ProbabilisticProgramming6998\ncp\datasets'
+PATH_TO_FLIGHTS_DATA = './flights.csv' #downloaded data
+NP_SAVE_DIR = './'
 DATASET_PREFIX = 'flights'
 NROWS = 10000
 TEST_PCT = .20
@@ -40,7 +40,7 @@ usecols = ['YEAR', 'MONTH', 'DAY', 'DAY_OF_WEEK', 'AIRLINE',
 # =============================================================================
 np.random.seed(RANDOM_SEED)
 
-df = pd.read_csv(PATH_TO_FLIGHTS_DATA, usecols=usecols, nrows=NROWS)
+df = pd.read_csv(PATH_TO_FLIGHTS_DATA, usecols=usecols, nrows=NROWS, engine = 'python')
 
 #Use only those flights that were not cancelled [have a finite delay time]
 df = df.loc[df['CANCELLED']==0]

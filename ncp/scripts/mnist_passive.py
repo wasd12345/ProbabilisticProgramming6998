@@ -28,21 +28,21 @@ from ncp import models
 from ncp import tools
 
 
-def default_schedule(model):
-  config = tools.AttrDict()
-  config.num_epochs = 2000
-  config.num_initial = 10
-  config.num_select = 10
-  config.select_after_epochs = range(50, 2000, 50)
-  config.eval_after_epochs = range(0, 2000, 50)
-  config.log_after_epochs = range(0, 2000, 500)
-  config.visualize_after_epochs = range(50, 2000, 500)
-  config.batch_size = 10
-  config.temperature = 0.5
-  config.filetype = 'png'
-  if model == 'det':
-    config.has_uncertainty = False
-  return config
+#def default_schedule(model):
+#  config = tools.AttrDict()
+#  config.num_epochs = 2000
+#  config.num_initial = 10
+#  config.num_select = 10
+#  config.select_after_epochs = range(50, 2000, 50)
+#  config.eval_after_epochs = range(0, 2000, 50)
+#  config.log_after_epochs = range(0, 2000, 500)
+#  config.visualize_after_epochs = range(50, 2000, 500)
+#  config.batch_size = 10
+#  config.temperature = 0.5
+#  config.filetype = 'png'
+#  if model == 'det':
+#    config.has_uncertainty = False
+#  return config
 
 
 def passive_schedule(model):
@@ -53,25 +53,28 @@ def passive_schedule(model):
   config.select_after_epochs = range(0) #or range(99999998,99999999) #Don't go through selection process
   config.eval_after_epochs = range(0, 2000, 50)
   config.log_after_epochs = range(config.num_epochs)
-  config.visualize_after_epochs = range(config.num_epochs)
+  config.visualize_after_epochs = range(0, 2000, 50)
   config.batch_size = 10
   config.temperature = 0.5
   config.filetype = 'png'
   if model == 'det':
     config.has_uncertainty = False
+  if model == 'bbb_mnist':
+    config.is_mnist = True
   return config
 
 
 def default_config(model):
   config = tools.AttrDict()
-  config.num_inputs = 19 #8 #THey use 8 features. But what features do they use??? Instead, we will use our own set, for now happens to be 19 since there is some one hot encoding.
-  config.layer_sizes = [50, 50]
-  if model == 'bbb':
+  config.num_inputs = 784
+  config.layer_sizes = []
+  config.bayesian_layer_sizes = [200]
+  if model == 'bbb' or model == 'bbb_mnist':
     config.divergence_scale = 1.0
   if model == 'bbb_ncp':
     config.noise_std = 0.1
     config.ncp_scale = 0.1
-    config.divergence_scale = 0
+    config.divergence_scale = 1
     config.ood_std_prior = None
     config.center_at_target = True
   if model == 'det_mix_ncp':
@@ -84,35 +87,36 @@ def default_config(model):
 
 
 def plot_results(args):
-  load_results = lambda x: tools.load_results(
-      os.path.join(args.logdir, x) + '-*/*.npz')
-  results = [
-      ('BBB+NCP', load_results('bbb_ncp')),
-      ('ODC+NCP', load_results('det_mix_ncp')),
-      ('BBB', load_results('bbb')),
-      ('Det', load_results('det')),
-  ]
-  fig, ax = plt.subplots(ncols=4, figsize=(8, 2))
-  tools.plot_distance(ax[0], results, 'train_distances', {})
-  ax[0].set_xlabel('Data points seen')
-  ax[0].set_title('Train RMSE')
-  ax[0].set_ylim(15, 40)
-  tools.plot_likelihood(ax[1], results, 'train_likelihoods', {})
-  ax[1].set_xlabel('Data points seen')
-  ax[1].set_title('Train NLPD')
-  ax[1].set_ylim(3.2, 5.0)
-  tools.plot_distance(ax[2], results, 'test_distances', {})
-  ax[2].set_xlabel('Data points seen')
-  ax[2].set_title('Test RMSE')
-  ax[2].set_ylim(29.5, 32)
-  tools.plot_likelihood(ax[3], results, 'test_likelihoods', {})
-  ax[3].set_xlabel('Data points seen')
-  ax[3].set_title('Test NLPD')
-  ax[3].set_ylim(4.6, 5.6)
-  ax[3].legend(frameon=False, labelspacing=0.2, borderpad=0)
-  fig.tight_layout(pad=0, w_pad=0.5)
-  filename = os.path.join(args.logdir, 'results.pdf')
-  fig.savefig(filename)
+  raise NotImplementedError
+  #load_results = lambda x: tools.load_results(
+  #    os.path.join(args.logdir, x) + '-*/*.npz')
+  #results = [
+  #    ('BBB+NCP', load_results('bbb_ncp')),
+  #    ('ODC+NCP', load_results('det_mix_ncp')),
+  #    ('BBB', load_results('bbb')),
+  #    ('Det', load_results('det')),
+  #]
+  #fig, ax = plt.subplots(ncols=4, figsize=(8, 2))
+  #tools.plot_distance(ax[0], results, 'train_distances', {})
+  #ax[0].set_xlabel('Data points seen')
+  #ax[0].set_title('Train RMSE')
+  #ax[0].set_ylim(15, 40)
+  #tools.plot_likelihood(ax[1], results, 'train_likelihoods', {})
+  #ax[1].set_xlabel('Data points seen')
+  #ax[1].set_title('Train NLPD')
+  #ax[1].set_ylim(3.2, 5.0)
+  #tools.plot_distance(ax[2], results, 'test_distances', {})
+  #ax[2].set_xlabel('Data points seen')
+  #ax[2].set_title('Test RMSE')
+  #ax[2].set_ylim(29.5, 32)
+  #tools.plot_likelihood(ax[3], results, 'test_likelihoods', {})
+  #ax[3].set_xlabel('Data points seen')
+  #ax[3].set_title('Test NLPD')
+  #ax[3].set_ylim(4.6, 5.6)
+  #ax[3].legend(frameon=False, labelspacing=0.2, borderpad=0)
+  #fig.tight_layout(pad=0, w_pad=0.5)
+  #filename = os.path.join(args.logdir, 'results.pdf')
+  #fig.savefig(filename)
 
 
 def main(args):
@@ -121,10 +125,10 @@ def main(args):
     return
   #warnings.filterwarnings('ignore', category=DeprecationWarning)  # TensorFlow.
   warnings.filterwarnings('ignore')#Just igner everything. For the features we are doing there is a left=right issue.
-  dataset = datasets.load_numpy_dataset(
-      args.dataset, args.train_amount, args.test_amount)
+  dataset = datasets.mnist.load_mnist()
   models_ = [
-      ('bbb_ncp', models.bbb_ncp.define_graph),
+      ('bbb_mnist', models.bbb_mnist.define_graph),
+      #('bbb_ncp', models.bbb_ncp.define_graph),
       #('det_mix_ncp', models.det_mix_ncp.define_graph),
       #('bbb', models.bbb.define_graph),
       #('det', models.det.define_graph),
@@ -148,16 +152,15 @@ def main(args):
     tf.reset_default_graph()
     tf.set_random_seed(seed)
     graph = define_graph(config)
-    tools.run_experiment(logdir, graph, dataset, **schedule, seed=seed)
+    tools.run_experiment(logdir, graph, dataset, **schedule, seed=seed) #NOT WORKING YET
     plot_results(args)
 
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
-  parser.add_argument('--schedule', default='default_schedule')
+  parser.add_argument('--schedule', default='passive_schedule')
   parser.add_argument('--config', default='default_config')
   parser.add_argument('--logdir', required=True)
-  parser.add_argument('--dataset', required=True)
   parser.add_argument('--seeds', type=int, default=5)
   parser.add_argument('--train_amount', type=int)
   parser.add_argument('--test_amount', type=int)

@@ -35,6 +35,8 @@ def init():
     save_mnist()
 
 def load_mnist():
+    download_mnist()
+    save_mnist()
     with open("./ncp/datasets/mnist.pkl",'rb') as f:
         mnist = pickle.load(f)
     train = tools.AttrDict(inputs = mnist["training_images"], targets = np.expand_dims(mnist["training_labels"], 1))
