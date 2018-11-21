@@ -29,7 +29,7 @@ def network(data, layer_sizes = [256, 256, 10]):
     #computes the ncp_loss, in this case simply the entropy, which we want to minimize over the out-of-distribution training data
     class_probabilities = tf.nn.softmax(logits)
     ncp_loss = tf.reduce_sum(-class_probabilities * tf.log(class_probabilities))
-    return standard_loss, ncp_loss
+    return standard_loss, ncp_loss, logits, class_probabilities
 
 def generate_partial_mnist(digits_to_omit):
     '''
@@ -66,7 +66,7 @@ def get_batches(images, labels, batch_size):
 ###################
 # Some hyperparameters
 learning_rate = 0.001
-training_epochs = 15
+training_epochs = 1
 batch_size = 100
 display_step = 1
 layer_sizes = [256, 256, 10]
@@ -76,17 +76,23 @@ alpha = 1 # weight factor between both contributions to the loss
 
 # PLACEHOLDERS FOR TRAINING DATA (id == in-distribution, od == out-of-distribution)
 id_images_ = tf.placeholder(tf.float32, [None, 28 * 28])
-id_labels_= tf.one_hot(tf.placeholder(tf.int32, [None,]), 10)
-id_data = (id_images_, id_labels_)
+id_labels_ = tf.placeholder(tf.int32, [None,])
+id_data = (
+        id_images_,
+        tf.one_hot(id_labels_, 10)
+           )
 
 od_images_ = tf.placeholder(tf.float32, [None, 28 * 28])
-od_labels_ = tf.one_hot(tf.placeholder(tf.int32, [None,]), 10 - len(digits_to_omit))
-od_data = (od_images_, od_labels_)
+od_labels_ = tf.placeholder(tf.int32, [None,])
+od_data = (
+        od_images_, tf.one_hot(od_labels_,
+        10 - len(digits_to_omit))
+          )
 
 # need to specify template in order to ensure network variables are shared between id and od calculations
 network_tpl = tf.make_template('network', network, layer_sizes = layer_sizes)
-id_loss, _ = network_tpl(id_data) # calculate CE loss for id input data
-_, od_loss = network_tpl(od_data) # calculate entropy for od input data
+id_loss, _, logits, _ = network_tpl(id_data) # calculate CE loss for id input data
+_, od_loss, logits_2, class_probabilities = network_tpl(od_data) # calculate entropy for od input data
 
 # loss function is sum of id and od contributions
 loss = alpha * id_loss + (1 - alpha) * od_loss
@@ -111,14 +117,17 @@ with tf.Session() as sess:
         # Loop over all batches
         for i in range(total_batch):
             id_batch_images, id_batch_labels = next(id_batches)
+            od_batch_images, od_batch_labels = next(od_batches)
             # Run optimization op (backprop) and cost op (to get loss value)
-            _, c = sess.run([train_op, loss], feed_dict={id_images_: id_batch_images,
-                                                         id_labels_: id_batch_labels,
-                                                         od_images_: id_batch_images.copy(),
-                                                         od_labels_: id_batch_labels.copy(),
-                                                        })
+            _, c, class_probs, logits_ = sess.run(
+                    [train_op, loss, class_probabilities, logits_2],
+                    feed_dict={id_images_: id_batch_images,
+                               id_labels_: id_batch_labels,
+                               od_images_: od_batch_images,
+                               od_labels_: od_batch_labels})
             # Compute average loss
             avg_cost += c / total_batch
+        print(logits_[0])
         # Display logs per epoch step
         if epoch % display_step == 0:
             print("Epoch:", '%04d' % (epoch+1), "cost={:.9f}".format(avg_cost))
@@ -126,7 +135,7 @@ with tf.Session() as sess:
 
     # Test model
     pred = tf.nn.softmax(logits)  # Apply softmax to logits
-    correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(Y, 1))
+    correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(tf.one_hot(id_labels_, 10), 1))
     # Calculate accuracy
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
-    print("Accuracy:", accuracy.eval({X: mnist.test.images, Y: mnist.test.labels}))
+    print("Accuracy:", accuracy.eval({id_images_: id_images, id_labels_: id_labels}))
