@@ -35,15 +35,13 @@ def init():
     save_mnist()
 
 def load_mnist():
-    download_mnist()
-    save_mnist()
+    #download_mnist()
+    #save_mnist()
     with open("./ncp/datasets/mnist.pkl",'rb') as f:
         mnist = pickle.load(f)
-    train = tools.AttrDict(inputs = mnist["training_images"], targets = np.expand_dims(mnist["training_labels"], 1))
-    test = tools.AttrDict(inputs = mnist["test_images"], targets = np.expand_dims(mnist["test_labels"], 1))
-    #domain variable needed for plotting? (just taking value from toy.py) 
-    domain = np.linspace(-1.2, 1.2, 1000)
-    return tools.AttrDict(domain = domain, train = train, test = test, target_scale = 1)
+    training_images = mnist['training_images']
+    training_labels = mnist['training_labels']
+    return training_images, training_labels
 
 if __name__ == '__main__':
     init()
