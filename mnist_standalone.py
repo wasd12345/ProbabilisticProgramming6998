@@ -5,6 +5,7 @@ from tensorflow.examples.tutorials.mnist import input_data
 import tensorflow as tf
 mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
 from ncp.datasets.mnist import load_mnist
+import pickle
 
 def network(data, layer_sizes = [256, 256, 10], ncp_scale = 0.1):
     '''
@@ -13,13 +14,13 @@ def network(data, layer_sizes = [256, 256, 10], ncp_scale = 0.1):
     # Define neural network topology (in this case, a simple MLP)
     hidden = data[0]
     labels = data[1]
-    for size in layer_sizes:
+    for size in layer_sizes[:-1]:
         hidden = tf.layers.dense(
                 inputs = hidden,
                 units = size,
                 activation = tf.nn.leaky_relu
                 )
-    logits = hidden
+    logits = tf.layers.dense(inputs = hidden, units = layer_sizes[-1], activation = None)
 
     #computes the traditional cross-entropy loss, which we want to minimize over the in-distribution training data
     standard_loss = tf.reduce_mean(
@@ -27,8 +28,9 @@ def network(data, layer_sizes = [256, 256, 10], ncp_scale = 0.1):
             )
 
     #computes the ncp_loss, in this case simply the entropy, which we want to minimize over the out-of-distribution training data
+    logits = logits - tf.reduce_mean(logits)
     class_probabilities = tf.nn.softmax(logits * tf.constant(ncp_scale, dtype = tf.float32))
-    ncp_loss = tf.reduce_mean(-class_probabilities * tf.log(class_probabilities))
+    ncp_loss = tf.reduce_mean(-class_probabilities * tf.log(tf.clip_by_value(class_probabilities, 1e-10, 1)))
     return standard_loss, ncp_loss, logits, class_probabilities
 
 def generate_partial_mnist(digits_to_omit):
@@ -37,19 +39,25 @@ def generate_partial_mnist(digits_to_omit):
     removes the digits specified in the list (digits_to_omit).
     '''
     images, labels = load_mnist()
-
     # Remove unwanted digits from training data
-    for digit in digits_to_omit:
-        indices = np.argwhere(labels == digit)
-        labels = np.delete(labels, indices, axis = 0)
-        images = np.delete(images, indices, axis = 0)
+    indices = np.argwhere(labels == digits_to_omit[0])
+    for digit in digits_to_omit[1:]:
+        indices = np.concatenate((indices, np.argwhere(labels == digit)), axis = 0)
+
+    # Store the images and labels of the omitted training data, to be able to monitor the entropy
+    # during NCP training. The network architecture does not allow to calculate the loss
+    # (not enough units in output layer)
+    om_images = images[indices.flatten()].copy()
+    om_labels = labels[indices.flatten()].copy() 
+    labels = np.delete(labels, indices, axis = 0)
+    images = np.delete(images, indices, axis = 0)
 
     #remap the other digits to {0, .., n_digits}, to be able to do one_hot encoding
     subtract_vector = np.zeros(10)
     for digit in digits_to_omit:
         subtract_vector[digit + 1:] += np.ones(10 - digit - 1)
     labels -= subtract_vector[labels].astype(np.uint8) 
-    return images, labels
+    return images, labels, om_images, om_labels
 
 def generate_od_data(images, labels):
     '''
@@ -71,18 +79,31 @@ def get_batches(images, labels, batch_size):
             labels_ = labels[i * batch_size : (i + 1) * batch_size]
             yield images_, labels_
 
-###################
+##################
 # Some hyperparameters
 learning_rate = 0.0001
-training_epochs = 10
+training_epochs = 5
 batch_size = 100
 display_step = 1
-digits_to_omit = [3, 4, 5, 6]
+digits_to_omit = [3, 5, ]
 output_layer_size = 10 - len(digits_to_omit)
 layer_sizes = [256, 256, output_layer_size]
-ncp_scale = 0.001 #scaling of logits output before the entropy is calculated, to reduce the size of the gradients
+ncp_scale = 1 #scaling of logits output before the entropy is calculated, to reduce the size of the gradients
 alpha = 1 # weight factor between both contributions to the loss
-clip_at = (-1., 1.)
+clip_at = (-10, 10)
+
+logging = dict()
+logging['log_step'] = 100
+logging['training_epochs'] = training_epochs
+logging['id_ncp_loss'] = []
+logging['id_loss'] = []
+logging['od_loss'] = []
+logging['od_ncp_loss'] = []
+logging['om_entropy'] = []
+logging['ncp_scale'] = ncp_scale
+logging['alpha'] = alpha
+logging['clip_at'] = clip_at
+logging['digits_to_omit'] = digits_to_omit.copy()
 ##################
 
 # PLACEHOLDERS FOR TRAINING DATA (id == in-distribution, od == out-of-distribution)
@@ -103,13 +124,11 @@ od_data = (
 
 # need to specify template in order to ensure network variables are shared between id and od calculations
 network_tpl = tf.make_template('network', network, layer_sizes = layer_sizes, ncp_scale = ncp_scale)
-id_loss, _, logits, _ = network_tpl(id_data) # calculate CE loss for id input data
-_, od_loss, logits_2, class_probabilities = network_tpl(od_data) # calculate entropy for od input data
+id_loss, id_ncp_loss, logits, class_probabilities = network_tpl(id_data) # calculate CE loss for id input data
+od_loss, od_ncp_loss, _, _ = network_tpl(od_data) # calculate entropy for od input data
 
-# loss function is sum of id and od contributions
-loss = alpha * id_loss #+ (1 - alpha) * od_loss
-#optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-#train_op = optimizer.minimize(loss)
+# loss function is sum of id standard loss and od ncp loss
+loss = alpha * id_loss #+ (1 - alpha) * od_ncp_loss
 
 optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate)
 gvs = optimizer.compute_gradients(loss)
@@ -122,12 +141,13 @@ init = tf.global_variables_initializer()
 with tf.Session() as sess:
     sess.run(init)
     # Get in-distribution images and labels, with some digits ommited as specified in 'digits_to_omit' list.
-    id_images, id_labels = generate_partial_mnist(digits_to_omit)
+    id_images, id_labels, om_images, om_labels = generate_partial_mnist(digits_to_omit)
     # Generate out-of-distribution images
     od_images, od_labels = generate_od_data(id_images, id_labels) 
     id_batches = get_batches(id_images, id_labels, batch_size)
     od_batches = get_batches(od_images, od_labels, batch_size)
 
+    counter = 0
     # Training cycle
     for epoch in range(training_epochs):
         avg_cost = 0.
@@ -137,23 +157,33 @@ with tf.Session() as sess:
         #for i in range(3):
             id_batch_images, id_batch_labels = next(id_batches)
             od_batch_images, od_batch_labels = next(od_batches)
-            # Run optimization op (backprop) and cost op (to get loss value)
-            _, c, class_probs, logits_, od_loss_, one_hot = sess.run(
-                    [train_op, loss, class_probabilities, logits_2, od_loss, one_hot_],
-                    feed_dict={id_images_: id_batch_images,
-                               id_labels_: id_batch_labels,
-                               od_images_: od_batch_images,
-                               od_labels_: od_batch_labels})
-            # Compute average loss
-            avg_cost += c / total_batch
 
-            #image = np.reshape(id_batch_images[1], (28, 28))
-            #print(id_batch_labels[1])
-            #plt.imshow(image)
-            #plt.show()
-            #print(one_hot[1])
-            #if i % 100 == 0: print('Output entropy: ', od_loss_)
-            #if i % 100 == 0: print('Loss: ', c)
+            _, id_loss_, id_ncp_loss_, od_loss_, od_ncp_loss_, class_ = sess.run(
+                    [train_op, id_loss, id_ncp_loss, od_loss, od_ncp_loss, class_probabilities],
+                    feed_dict = {id_images_: id_batch_images,
+                                id_labels_: id_batch_labels,
+                                od_images_: od_batch_images,
+                                od_labels_: od_batch_labels})
+            #om_entropy_ = sess.run([id_ncp_loss],
+            #        feed_dict = {id_images_: om_images,
+            #                    id_labels_: om_labels,
+            #                    od_images_: od_batch_images,
+            #                    od_labels_: od_batch_labels}) #Only interested in entropy of omitted data
+            om_entropy_ = 1
+
+            # Compute average standard loss
+            avg_cost += id_loss_ / total_batch
+            counter += 1
+
+            if counter % logging['log_step'] == 0:
+                logging['id_loss'].append(id_loss_)
+                logging['id_ncp_loss'].append(id_ncp_loss_)
+                logging['od_loss'].append(od_loss_)
+                logging['od_ncp_loss'].append(od_ncp_loss_)
+                logging['om_entropy'].append(om_entropy_)
+                print('ncp loss: ',id_ncp_loss_)
+                #print('class probabilities: ', class_)
+
         #print(logits_[0])
         # Display logs per epoch step
         if epoch % display_step == 0:
@@ -166,3 +196,4 @@ with tf.Session() as sess:
     # Calculate accuracy
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
     print("Accuracy:", accuracy.eval({id_images_: id_images, id_labels_: id_labels}))
+    pickle.dump(logging, open( "log.p", "wb" ) )
