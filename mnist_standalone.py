@@ -21,17 +21,17 @@ def network(data, layer_sizes = [256, 256, 10], ncp_scale = 0.1):
                 activation = tf.nn.leaky_relu
                 )
     logits = tf.layers.dense(inputs = hidden, units = layer_sizes[-1], activation = None)
-
     #computes the traditional cross-entropy loss, which we want to minimize over the in-distribution training data
     standard_loss = tf.reduce_mean(
             tf.nn.softmax_cross_entropy_with_logits(logits = logits, labels = labels)
             )
-
     #computes the ncp_loss, in this case simply the entropy, which we want to minimize over the out-of-distribution training data
     logits = logits - tf.reduce_mean(logits)
     class_probabilities = tf.nn.softmax(logits * tf.constant(ncp_scale, dtype = tf.float32))
-    ncp_loss = tf.reduce_mean(-class_probabilities * tf.log(tf.clip_by_value(class_probabilities, 1e-10, 1)))
-    return standard_loss, ncp_loss, logits, class_probabilities
+    mean, variance = tf.nn.moments(-class_probabilities * tf.log(tf.clip_by_value(class_probabilities, 1e-20, 1)), axes = [1])
+    ncp_loss = tf.reduce_mean(mean)
+    ncp_std = tf.reduce_mean(tf.math.sqrt(variance))
+    return standard_loss, ncp_loss, logits, class_probabilities, ncp_std
 
 def generate_partial_mnist(digits_to_omit):
     '''
@@ -93,13 +93,13 @@ alpha = 1 # weight factor between both contributions to the loss
 clip_at = (-10, 10)
 
 logging = dict()
-logging['log_step'] = 100
+logging['log_step'] = 15
 logging['training_epochs'] = training_epochs
 logging['id_ncp_loss'] = []
 logging['id_loss'] = []
 logging['od_loss'] = []
 logging['od_ncp_loss'] = []
-logging['om_entropy'] = []
+logging['om_ncp_loss'] = []
 logging['ncp_scale'] = ncp_scale
 logging['alpha'] = alpha
 logging['clip_at'] = clip_at
@@ -124,11 +124,11 @@ od_data = (
 
 # need to specify template in order to ensure network variables are shared between id and od calculations
 network_tpl = tf.make_template('network', network, layer_sizes = layer_sizes, ncp_scale = ncp_scale)
-id_loss, id_ncp_loss, logits, class_probabilities = network_tpl(id_data) # calculate CE loss for id input data
-od_loss, od_ncp_loss, _, _ = network_tpl(od_data) # calculate entropy for od input data
+id_loss, id_ncp_loss, logits, _, id_ncp_std  = network_tpl(id_data) # calculate CE loss for id input data
+od_loss, od_ncp_loss, _, _, _ = network_tpl(od_data) # calculate entropy for od input data
 
 # loss function is sum of id standard loss and od ncp loss
-loss = alpha * id_loss #+ (1 - alpha) * od_ncp_loss
+loss = alpha * id_loss + (1 - alpha) * od_ncp_loss
 
 optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate)
 gvs = optimizer.compute_gradients(loss)
@@ -158,18 +158,17 @@ with tf.Session() as sess:
             id_batch_images, id_batch_labels = next(id_batches)
             od_batch_images, od_batch_labels = next(od_batches)
 
-            _, id_loss_, id_ncp_loss_, od_loss_, od_ncp_loss_, class_ = sess.run(
-                    [train_op, id_loss, id_ncp_loss, od_loss, od_ncp_loss, class_probabilities],
+            _, id_loss_, id_ncp_loss_, od_loss_, od_ncp_loss_, id_ncp_std_ = sess.run(
+                    [train_op, id_loss, id_ncp_loss, od_loss, od_ncp_loss, id_ncp_std],
                     feed_dict = {id_images_: id_batch_images,
                                 id_labels_: id_batch_labels,
                                 od_images_: od_batch_images,
                                 od_labels_: od_batch_labels})
-            #om_entropy_ = sess.run([id_ncp_loss],
-            #        feed_dict = {id_images_: om_images,
-            #                    id_labels_: om_labels,
-            #                    od_images_: od_batch_images,
-            #                    od_labels_: od_batch_labels}) #Only interested in entropy of omitted data
-            om_entropy_ = 1
+            om_entropy_ = sess.run([id_ncp_loss],
+                    feed_dict = {id_images_: om_images,
+                                id_labels_: om_labels,
+                                od_images_: od_batch_images,
+                                od_labels_: od_batch_labels}) #Only interested in entropy of omitted data
 
             # Compute average standard loss
             avg_cost += id_loss_ / total_batch
@@ -180,9 +179,8 @@ with tf.Session() as sess:
                 logging['id_ncp_loss'].append(id_ncp_loss_)
                 logging['od_loss'].append(od_loss_)
                 logging['od_ncp_loss'].append(od_ncp_loss_)
-                logging['om_entropy'].append(om_entropy_)
-                print('ncp loss: ',id_ncp_loss_)
-                #print('class probabilities: ', class_)
+                logging['om_ncp_loss'].append(om_entropy_)
+                print('ncp loss: ',id_ncp_loss_, '   ncp std: ', id_ncp_std_)
 
         #print(logits_[0])
         # Display logs per epoch step
@@ -196,4 +194,4 @@ with tf.Session() as sess:
     # Calculate accuracy
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
     print("Accuracy:", accuracy.eval({id_images_: id_images, id_labels_: id_labels}))
-    pickle.dump(logging, open( "log.p", "wb" ) )
+    pickle.dump(logging, open( "log_ncp_on.p", "wb" ) )
