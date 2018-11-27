@@ -155,6 +155,7 @@ if EXPERIMENT_NAME=='alpha':
 
     markersize = 7
     fig = plt.figure(figsize = (6, 4))
+    plt.title('Entropy as a function of alpha\n(inverse weighting of entropy term)')
     ax0 = fig.add_subplot(111)
     #In-distribution entropy
     ax0.semilogx(alphas, id_entropy_mean,
@@ -184,7 +185,7 @@ if EXPERIMENT_NAME=='alpha':
             marker = '.',
             linestyle = '--',
             color = 'k',
-            label = 'Omitted digit'
+            label = 'Omitted digits'
             )
     
     #1 SD Error bars:
@@ -200,5 +201,5 @@ if EXPERIMENT_NAME=='alpha':
     ax0.legend()
     ax0.set_ylabel('Entropy')
     ax0.set_xlabel('alpha')
-    fig.savefig(os.path.join(savedir,f'losses_{exp}.pgf'), bbox_inches = 'tight')
-    fig.savefig(os.path.join(savedir,f'losses_{exp}.pdf'), bbox_inches = 'tight')    
+    fig.savefig(os.path.join(savedir,f'alpha_experiment.pgf'), bbox_inches = 'tight')
+    fig.savefig(os.path.join(savedir,f'alpha_experiment.pdf'), bbox_inches = 'tight')    
