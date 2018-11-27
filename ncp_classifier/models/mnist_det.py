@@ -2,6 +2,8 @@ from __future__ import print_function
 import tensorflow as tf
 import pickle
 import os
+import numpy as np
+from random import seed
 
 from ncp_classifier.models.mnist_utils import generate_partial_mnist, generate_od_data, get_batches
 
@@ -16,9 +18,9 @@ digits_to_omit = [9] #[8,9 ] #use 8,9 to not mess up label indexing
 output_layer_size = 10 - len(digits_to_omit)
 layer_sizes = [256, 256, output_layer_size]
 ncp_scale = 1 #scaling of logits output before the entropy is calculated, to reduce the size of the gradients
-alpha = 1 # weight factor between both contributions to the loss
+ALPHA = 1e-4 # weight factor between both contributions to the loss
 clip_at = (-10, 10)
-
+RANDOM_SEED = 11282018
 
 ##################
 
@@ -54,7 +56,7 @@ def network(data, layer_sizes = [256, 256, 10], ncp_scale = 0.1):
 
 
 
-def run_single(ood_transformations,experiment_suffix):
+def run_single(ood_transformations,alpha,experiment_suffix):
     """
     Run a single experiment, i.e. train one network to completion on one dataset
     """
@@ -62,15 +64,26 @@ def run_single(ood_transformations,experiment_suffix):
     logging = dict()
     logging['log_step'] = 15
     logging['training_epochs'] = training_epochs
-    logging['id_ncp_loss'] = []
-    logging['id_loss'] = []
-    logging['od_loss'] = []
-    logging['od_ncp_loss'] = []
-    logging['om_ncp_loss'] = []
+    logging['id_ncp_loss'] = [] #entropy (uncertainty) loss
+    logging['id_ncp_std'] = []
+    logging['id_loss'] = [] #standard CE loss
+    logging['od_loss'] = [] #standard CE loss
+    logging['od_ncp_loss'] = [] #entropy (uncertainty) loss
+    logging['om_ncp_loss'] = [] #entropy (uncertainty) loss
+    logging['om_ncp_std'] = []   
+    logging['od_ncp_std'] = []
+    
     logging['ncp_scale'] = ncp_scale
     logging['alpha'] = alpha
     logging['clip_at'] = clip_at
-    logging['digits_to_omit'] = digits_to_omit.copy()    
+    logging['digits_to_omit'] = digits_to_omit.copy()   
+    logging['learning_rate'] = learning_rate
+    logging['batch_size'] = batch_size
+    logging['display_step'] = display_step
+    logging['output_layer_size'] = output_layer_size
+    logging['layer_sizes'] = layer_sizes
+    logging['RANDOM_SEED'] = RANDOM_SEED
+    
     
     # PLACEHOLDERS FOR TRAINING DATA (id == in-distribution, od == out-of-distribution)
     id_images_ = tf.placeholder(tf.float32, [None, 28 * 28])
@@ -90,8 +103,8 @@ def run_single(ood_transformations,experiment_suffix):
     
     # need to specify template in order to ensure network variables are shared between id and od calculations
     network_tpl = tf.make_template('network', network, layer_sizes = layer_sizes, ncp_scale = ncp_scale)
-    id_loss, id_ncp_loss, logits, _, id_ncp_std  = network_tpl(id_data) # calculate CE loss for id input data
-    od_loss, od_ncp_loss, _, _, _ = network_tpl(od_data) # calculate entropy for od input data
+    id_loss, id_ncp_loss, id_logits, _, id_ncp_std  = network_tpl(id_data) # calculate CE loss for id input data
+    od_loss, od_ncp_loss, od_logits, _, od_ncp_std = network_tpl(od_data) # calculate entropy for od input data
     
     # loss function is sum of id standard loss and od ncp loss
     loss = alpha * id_loss - (1 - alpha) * od_ncp_loss
@@ -123,30 +136,42 @@ def run_single(ood_transformations,experiment_suffix):
             #for i in range(3):
                 id_batch_images, id_batch_labels = next(id_batches)
                 od_batch_images, od_batch_labels = next(od_batches)
-    
-                _, id_loss_, id_ncp_loss_, od_loss_, od_ncp_loss_, id_ncp_std_ = sess.run(
-                        [train_op, id_loss, id_ncp_loss, od_loss, od_ncp_loss, id_ncp_std],
+                
+                
+                _, id_loss_, id_ncp_loss_, od_loss_, od_ncp_loss_, id_ncp_std_, od_ncp_std_ = sess.run(
+                        [train_op, id_loss, id_ncp_loss, od_loss, od_ncp_loss, id_ncp_std, od_ncp_std],
                         feed_dict = {id_images_: id_batch_images,
                                     id_labels_: id_batch_labels,
                                     od_images_: od_batch_images,
                                     od_labels_: od_batch_labels})
-                om_entropy_ = sess.run([id_ncp_loss],
+                om_entropy_, om_entropy_std_ = sess.run([id_ncp_loss,id_ncp_std],
                         feed_dict = {id_images_: om_images,
                                     id_labels_: om_labels,
                                     od_images_: od_batch_images,
-                                    od_labels_: od_batch_labels}) #Only interested in entropy of omitted data
-    
+                                    od_labels_: od_batch_labels}) #Only interested in entropy of omitted data            
+            
+                
                 # Compute average standard loss
                 avg_cost += id_loss_ / total_batch
                 counter += 1
     
                 if counter % logging['log_step'] == 0:
+                    #Standard cross-entropy losses
                     logging['id_loss'].append(id_loss_)
-                    logging['id_ncp_loss'].append(id_ncp_loss_)
                     logging['od_loss'].append(od_loss_)
+                    #Uncertainty (entropy) losses
+                    logging['id_ncp_loss'].append(id_ncp_loss_)
                     logging['od_ncp_loss'].append(od_ncp_loss_)
                     logging['om_ncp_loss'].append(om_entropy_)
-                    print('ncp loss: ',id_ncp_loss_, '   ncp std: ', id_ncp_std_)
+                    #Std's pf those uncertainty (entropy) losses
+                    logging['id_ncp_std'].append(id_ncp_std_)
+                    logging['od_ncp_std'].append(od_ncp_std_)
+                    logging['om_ncp_std'].append(om_entropy_std_)
+                    
+                    print('id entropy loss: ',id_ncp_loss_, '   id entropy std: ', id_ncp_std_)
+                    print('od entropy loss: ',od_ncp_loss_, '   od entropy std: ', od_ncp_std_)
+                    print('om entropy loss: ',om_entropy_, '   om entropy std: ', om_entropy_std_)
+                    print()
     
             #print(logits_[0])
             # Display logs per epoch step
@@ -154,12 +179,30 @@ def run_single(ood_transformations,experiment_suffix):
                 print("Epoch:", '%04d' % (epoch+1), "cost={:.9f}".format(avg_cost))
         print("Optimization Finished!")
     
+
         # Test model
-        pred = tf.nn.softmax(logits)  # Apply softmax to logits
+        pred = tf.nn.softmax(id_logits)  # Apply softmax to logits
         correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(tf.one_hot(id_labels_, output_layer_size), 1))
         # Calculate accuracy
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
-        print("Accuracy:", accuracy.eval({id_images_: id_images, id_labels_: id_labels}))
+        logging['id_acc'] = accuracy.eval({id_images_: id_images, id_labels_: id_labels})
+        
+        
+        od_pred = tf.nn.softmax(od_logits)
+        od_correct_prediction = tf.equal(tf.argmax(od_pred, 1), tf.argmax(tf.one_hot(od_labels_, output_layer_size), 1))
+        od_accuracy = tf.reduce_mean(tf.cast(od_correct_prediction, "float"))
+        logging['od_acc'] = od_accuracy.eval({od_images_: od_images, od_labels_: od_labels})
+        
+        
+        print("Full id_acc:", logging['id_acc'])
+        print("Full od_acc:", logging['od_acc'])
+#        print("Full om_acc:", logging['om_acc']) #This should always be 0 for an unseen digit since our classifier can never choose this label
+            
+        #Calculate mean + std of entropy over all 3 full datasets:
+        #!!!!!!!!!!!!!!!!!!!!!!!
+        
+        
+        
         logdir = os.path.join('ncp_classifier', 'logs')
         if not os.path.exists(logdir):
             os.mkdir(logdir)
@@ -179,6 +222,11 @@ def rotation_experiment():
     ROTATIONS_UPPER_BOUND = [i*10. for i in range(10)]
     
     for i, UB in enumerate(ROTATIONS_UPPER_BOUND):
+        #For each experiment: seed -> same weights init, same data splits
+        seed(RANDOM_SEED)
+        np.random.seed(RANDOM_SEED)
+        tf.random.set_random_seed(RANDOM_SEED)
+        
         experiment_suffix = f"{EXPERIMENT_NAME}_{i}" 
         ood_transformations = {'rotate':[0.,UB],
                                #'translate':None,
@@ -188,13 +236,41 @@ def rotation_experiment():
                                #'swirl':[],
                                #'noise':None,
                                }        
-        run_single(ood_transformations,experiment_suffix)
+        run_single(ood_transformations,ALPHA,experiment_suffix)
         tf.reset_default_graph()
+
+
+
+def alpha_experiment():
+    """
+    Sweep through a range of alpha values in loss function
+    (tradeoff btwn standard cross-entropy loss vs. OOD uncertainty loss)
+    """
+    #Experiment parameters:
+    EXPERIMENT_NAME = 'alpha'
+    alpha_list = np.logspace(-7., 0., 8)
     
+    for i, a in enumerate(alpha_list):
+        print('alpha:', a)
+        #For each experiment: seed -> same weights init, same data splits
+        seed(RANDOM_SEED)
+        np.random.seed(RANDOM_SEED)
+        tf.random.set_random_seed(RANDOM_SEED)
+        
+        experiment_suffix = f"{EXPERIMENT_NAME}_{i}"
+        ALPHA = alpha_list[i]
+        ood_transformations = {'rotate':[0.,30.]}
+        
+        run_single(ood_transformations,ALPHA,experiment_suffix)
+        tf.reset_default_graph()
+        
 
 if __name__=="__main__":
     
     #Do the experiment with various angles of rotations:
-    rotation_experiment()
+#    rotation_experiment()
+    
+    #Do the alpha loss function experiment
+    alpha_experiment()
     
     #Do experiment with ...
