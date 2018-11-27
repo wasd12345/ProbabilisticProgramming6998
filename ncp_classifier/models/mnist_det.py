@@ -186,21 +186,32 @@ def run_single(ood_transformations,alpha,experiment_suffix):
         # Calculate accuracy
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
         logging['id_acc'] = accuracy.eval({id_images_: id_images, id_labels_: id_labels})
-        
-        
+        #Same for OOD data:
         od_pred = tf.nn.softmax(od_logits)
         od_correct_prediction = tf.equal(tf.argmax(od_pred, 1), tf.argmax(tf.one_hot(od_labels_, output_layer_size), 1))
         od_accuracy = tf.reduce_mean(tf.cast(od_correct_prediction, "float"))
         logging['od_acc'] = od_accuracy.eval({od_images_: od_images, od_labels_: od_labels})
         
-        
         print("Full id_acc:", logging['id_acc'])
         print("Full od_acc:", logging['od_acc'])
-#        print("Full om_acc:", logging['om_acc']) #This should always be 0 for an unseen digit since our classifier can never choose this label
-            
-        #Calculate mean + std of entropy over all 3 full datasets:
-        #!!!!!!!!!!!!!!!!!!!!!!!
         
+        #This should always be 0 for an unseen digit since our classifier can never choose this label
+#        print("Full om_acc:", logging['om_acc'])
+            
+        
+        #Calculate mean + std of entropy over all 3 full datasets:
+        _, id_entropy_mean, od_entropy_mean, id_entropy_std, od_entropy_std = sess.run(
+                [train_op, id_ncp_loss, od_ncp_loss, id_ncp_std, od_ncp_std],
+                feed_dict = {id_images_: id_images,
+                            id_labels_: id_labels,
+                            od_images_: od_images,
+                            od_labels_: od_labels})
+        
+        logging['id_entropy_mean'] = id_entropy_mean
+        logging['id_entropy_std'] = id_entropy_std
+        logging['od_entropy_mean'] = od_entropy_mean
+        logging['od_entropy_std'] = od_entropy_std        
+        #"om_ncp_loss" and "om_ncp_std" are already the whole set values for om
         
         
         logdir = os.path.join('ncp_classifier', 'logs')
