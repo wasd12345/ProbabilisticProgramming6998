@@ -1,11 +1,8 @@
 from __future__ import print_function
-#from tensorflow.examples.tutorials.mnist import input_data
 import tensorflow as tf
-#mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
 import pickle
 import os
 
-#from ncp_classifier.datasets.mnist import load_mnist
 from ncp_classifier.models.mnist_utils import generate_partial_mnist, generate_od_data, get_batches
 
 
@@ -97,7 +94,7 @@ def run_single(ood_transformations,experiment_suffix):
     od_loss, od_ncp_loss, _, _, _ = network_tpl(od_data) # calculate entropy for od input data
     
     # loss function is sum of id standard loss and od ncp loss
-    loss = alpha * id_loss + (1 - alpha) * od_ncp_loss
+    loss = alpha * id_loss - (1 - alpha) * od_ncp_loss
     
     optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate)
     gvs = optimizer.compute_gradients(loss)

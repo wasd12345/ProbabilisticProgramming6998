@@ -1,11 +1,8 @@
 from __future__ import print_function
 import numpy as np
-#from tensorflow.examples.tutorials.mnist import input_data
 import tensorflow as tf
-#mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
 import pickle
 
-#from ncp_classifier.datasets.mnist import load_mnist
 from ncp_classifier.models.mnist_utils import generate_partial_mnist, generate_od_data, get_batches
 
 from tensorflow_probability import distributions as tfd
