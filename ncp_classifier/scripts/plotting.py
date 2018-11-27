@@ -137,6 +137,8 @@ if EXPERIMENT_NAME=='alpha':
     od_entropy_std = []
     om_entropy_mean = []
     om_entropy_std = []
+    id_acc = []
+    od_acc = []
     for dd in data_list:
         s = dd.find('__')+2
         e = dd.find('.p')
@@ -151,8 +153,15 @@ if EXPERIMENT_NAME=='alpha':
         #For om, we test on whole om set at every iteration, so just use last (fully trained) value [-1]
         om_entropy_mean.extend([logging['om_ncp_loss'][-1]])
         om_entropy_std.extend([logging['om_ncp_std'][-1]])
+        #And look at accuracies
+        id_acc.extend([logging['id_acc']])
+        od_acc.extend([logging['od_acc']])
+        #(om_acc would just be 0 always)
 
 
+    # =============================================================================
+    # Entropies
+    # =============================================================================
     markersize = 7
     fig = plt.figure(figsize = (6, 4))
     plt.title('Entropy as a function of alpha\n(inverse weighting of entropy term)')
@@ -201,5 +210,34 @@ if EXPERIMENT_NAME=='alpha':
     ax0.legend()
     ax0.set_ylabel('Entropy')
     ax0.set_xlabel('alpha')
-    fig.savefig(os.path.join(savedir,f'alpha_experiment.pgf'), bbox_inches = 'tight')
-    fig.savefig(os.path.join(savedir,f'alpha_experiment.pdf'), bbox_inches = 'tight')    
+    fig.savefig(os.path.join(savedir,f'alpha_experiment_entropy.pgf'), bbox_inches = 'tight')
+    fig.savefig(os.path.join(savedir,f'alpha_experiment_entropy.pdf'), bbox_inches = 'tight')    
+    
+    
+    # =============================================================================
+    # Accuracies
+    # =============================================================================
+    fig = plt.figure(figsize = (6, 4))
+    plt.title('Accuracy as a function of alpha\n(inverse weighting of entropy term)')
+    ax0 = fig.add_subplot(111)
+    #In-distribution
+    ax0.semilogx(alphas, id_acc, markerfacecolor='b', 
+             markeredgecolor='black', marker='.', linestyle='--', color='k', 
+             label='In-distribution')
+    #OOD
+    ax0.semilogx(alphas, od_acc, markerfacecolor='g', 
+             markeredgecolor='black', marker='.', linestyle='--', color='k', 
+             label='OOD')
+    #Omitted digits
+    ax0.semilogx(alphas, [0.]*len(alphas), markerfacecolor='r', 
+             markeredgecolor='black', marker='.', linestyle='--', color='k', 
+             label='Omitted digits')    
+                   
+    ax0.xaxis.set_major_formatter(FormatStrFormatter('%g'))
+    ax0.get_yaxis().set_tick_params(which='both', direction='in')
+    ax0.get_xaxis().set_tick_params(which='both', direction='in')
+    ax0.legend()
+    ax0.set_ylabel('Accuracy')
+    ax0.set_xlabel('alpha')
+    fig.savefig(os.path.join(savedir,f'alpha_experiment_accuracy.pgf'), bbox_inches = 'tight')
+    fig.savefig(os.path.join(savedir,f'alpha_experiment_accuracy.pdf'), bbox_inches = 'tight')       
