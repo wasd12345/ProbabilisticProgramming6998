@@ -14,19 +14,15 @@ learning_rate = 0.0001
 training_epochs = 2#5
 batch_size = 100
 display_step = 1
-digits_to_omit = [9] #[8,9 ] #use 8,9 to not mess up label indexing
-output_layer_size = 10 - len(digits_to_omit)
-layer_sizes = [256, 256, output_layer_size]
-ncp_scale = 1 #scaling of logits output before the entropy is calculated, to reduce the size of the gradients
-ALPHA = 1e-4 # weight factor between both contributions to the loss
-clip_at = (-10, 10)
+NCP_SCALE = 1 #scaling of logits output before the entropy is calculated, to reduce the size of the gradients
+clip_at = (-10, 10) #gradient clipping
 RANDOM_SEED = 11282018
-
+NORMALIZE_ENTROPY = False #True #False
 ##################
 
 
 
-def network(data, layer_sizes = [256, 256, 10], ncp_scale = 0.1):
+def network(data, layer_sizes, ncp_scale = 0.1):
     '''
     Defines network topology 
     '''
@@ -47,7 +43,13 @@ def network(data, layer_sizes = [256, 256, 10], ncp_scale = 0.1):
     #computes the ncp_loss, in this case simply the entropy, which we want to minimize over the out-of-distribution training data
     logits = logits - tf.reduce_mean(logits)
     class_probabilities = tf.nn.softmax(logits * tf.constant(ncp_scale, dtype = tf.float32))
-    mean, variance = tf.nn.moments(-class_probabilities * tf.log(tf.clip_by_value(class_probabilities, 1e-20, 1)), axes = [1])
+    entropy = -class_probabilities * tf.log(tf.clip_by_value(class_probabilities, 1e-20, 1))
+    #Use the normalized entropy (divide by log_b(K) ) so is on [0,1] 
+    #so easier to compare across experiments:
+    if NORMALIZE_ENTROPY==True:
+        baseK = tf.constant(layer_sizes[-1], dtype=tf.float32, shape=(layer_sizes[-1],))
+        entropy /= tf.log(baseK)
+    mean, variance = tf.nn.moments(entropy, axes = [1])
     ncp_loss = tf.reduce_mean(mean)
     ncp_std = tf.reduce_mean(tf.math.sqrt(variance))
     return standard_loss, ncp_loss, logits, class_probabilities, ncp_std
@@ -56,7 +58,7 @@ def network(data, layer_sizes = [256, 256, 10], ncp_scale = 0.1):
 
 
 
-def run_single(ood_transformations,alpha,experiment_suffix):
+def run_single(digits_to_omit, ood_transformations, alpha, experiment_suffix):
     """
     Run a single experiment, i.e. train one network to completion on one dataset
     """
@@ -73,16 +75,19 @@ def run_single(ood_transformations,alpha,experiment_suffix):
     logging['om_ncp_std'] = []   
     logging['od_ncp_std'] = []
     
-    logging['ncp_scale'] = ncp_scale
+    logging['ncp_scale'] = NCP_SCALE
     logging['alpha'] = alpha
     logging['clip_at'] = clip_at
-    logging['digits_to_omit'] = digits_to_omit.copy()   
+  
     logging['learning_rate'] = learning_rate
     logging['batch_size'] = batch_size
     logging['display_step'] = display_step
-    logging['output_layer_size'] = output_layer_size
-    logging['layer_sizes'] = layer_sizes
     logging['RANDOM_SEED'] = RANDOM_SEED
+    
+    logging['digits_to_omit'] = digits_to_omit.copy()     
+    logging['output_layer_size'] = 10 - len(digits_to_omit)
+    logging['layer_sizes'] = [256, 256, logging['output_layer_size']]
+    
     
     
     # PLACEHOLDERS FOR TRAINING DATA (id == in-distribution, od == out-of-distribution)
@@ -91,18 +96,18 @@ def run_single(ood_transformations,alpha,experiment_suffix):
 #    one_hot_ = tf.one_hot(id_labels_, output_layer_size)
     id_data = (
             id_images_,
-            tf.one_hot(id_labels_, output_layer_size)
+            tf.one_hot(id_labels_, logging['output_layer_size'])
                )
     
     od_images_ = tf.placeholder(tf.float32, [None, 28 * 28])
     od_labels_ = tf.placeholder(tf.int32, [None,])
     od_data = (
             od_images_,
-            tf.one_hot(od_labels_, output_layer_size)
+            tf.one_hot(od_labels_, logging['output_layer_size'])
               )
     
     # need to specify template in order to ensure network variables are shared between id and od calculations
-    network_tpl = tf.make_template('network', network, layer_sizes = layer_sizes, ncp_scale = ncp_scale)
+    network_tpl = tf.make_template('network', network, layer_sizes=logging['layer_sizes'], ncp_scale=logging['ncp_scale'])
     id_loss, id_ncp_loss, id_logits, _, id_ncp_std  = network_tpl(id_data) # calculate CE loss for id input data
     od_loss, od_ncp_loss, od_logits, _, od_ncp_std = network_tpl(od_data) # calculate entropy for od input data
     
@@ -182,13 +187,13 @@ def run_single(ood_transformations,alpha,experiment_suffix):
 
         # Test model
         pred = tf.nn.softmax(id_logits)  # Apply softmax to logits
-        correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(tf.one_hot(id_labels_, output_layer_size), 1))
+        correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(tf.one_hot(id_labels_, logging['output_layer_size']), 1))
         # Calculate accuracy
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
         logging['id_acc'] = accuracy.eval({id_images_: id_images, id_labels_: id_labels})
         #Same for OOD data:
         od_pred = tf.nn.softmax(od_logits)
-        od_correct_prediction = tf.equal(tf.argmax(od_pred, 1), tf.argmax(tf.one_hot(od_labels_, output_layer_size), 1))
+        od_correct_prediction = tf.equal(tf.argmax(od_pred, 1), tf.argmax(tf.one_hot(od_labels_, logging['output_layer_size']), 1))
         od_accuracy = tf.reduce_mean(tf.cast(od_correct_prediction, "float"))
         logging['od_acc'] = od_accuracy.eval({od_images_: od_images, od_labels_: od_labels})
         
@@ -231,6 +236,8 @@ def rotation_experiment():
     #Experiment parameters:
     EXPERIMENT_NAME = 'rotate'
     ROTATIONS_UPPER_BOUND = [i*10. for i in range(10)]
+    DIGITS_TO_OMIT = [8,9]
+    ALPHA = 1e-4 # weight factor between both contributions to the loss
     
     for i, UB in enumerate(ROTATIONS_UPPER_BOUND):
         #For each experiment: seed -> same weights init, same data splits
@@ -247,7 +254,7 @@ def rotation_experiment():
                                #'swirl':[],
                                #'noise':None,
                                }        
-        run_single(ood_transformations,ALPHA,experiment_suffix)
+        run_single(DIGITS_TO_OMIT, ood_transformations,ALPHA,experiment_suffix)
         tf.reset_default_graph()
 
 
@@ -260,6 +267,7 @@ def alpha_experiment():
     #Experiment parameters:
     EXPERIMENT_NAME = 'alpha'
     alpha_list = np.logspace(-7., 0., 8)
+    DIGITS_TO_OMIT = [8,9]
     
     for i, a in enumerate(alpha_list):
         print('alpha:', a)
@@ -270,11 +278,54 @@ def alpha_experiment():
         
         experiment_suffix = f"{EXPERIMENT_NAME}_{i}"
         ALPHA = alpha_list[i]
-        ood_transformations = {'rotate':[0.,30.]}
+        THETA = 60.
+        ood_transformations = {'rotate':[-THETA,THETA]}
         
-        run_single(ood_transformations,ALPHA,experiment_suffix)
+        run_single(DIGITS_TO_OMIT,ood_transformations,ALPHA,experiment_suffix)
         tf.reset_default_graph()
         
+
+
+def digits_out_experiment():
+    """
+    Successively hold out more digit classes, e.g.
+    set 1: in-distribution=[0,...,8] and OOD=[9]
+    set 2: in-distribution=[0,...,7] and OOD=[8,9]
+    set 3: in-distribution=[0,...,3] and OOD=[4,5,6,7,8,9]
+    """
+    #Must have at least 1 hold out digit class, 
+    #and at least 2 in-distribution digit classes
+    DIG_OUTS = [[9],
+                [8,9],
+                [4,5,6,7,8,9],
+                [2,3,4,5,6,7,8,9]
+                ]
+    
+    #Experiment parameters:
+    EXPERIMENT_NAME = 'digout'
+    alpha_list = np.logspace(-7., 0., 8)
+    for i, d_ood in enumerate(DIG_OUTS):
+        digs = ''
+        for mm in d_ood:
+            digs += str(mm)
+        digs += 'out'
+        
+        for i, a in enumerate(alpha_list):
+            print('alpha:', a)
+            #For each experiment: seed -> same weights init, same data splits
+            seed(RANDOM_SEED)
+            np.random.seed(RANDOM_SEED)
+            tf.random.set_random_seed(RANDOM_SEED)
+            
+            experiment_suffix = f"{EXPERIMENT_NAME}_{digs}_{i}"
+            ALPHA = alpha_list[i]
+            THETA = 60.
+            ood_transformations = {'rotate':[-THETA,THETA]}
+            
+            run_single(d_ood, ood_transformations, ALPHA, experiment_suffix)
+            tf.reset_default_graph()
+
+
 
 if __name__=="__main__":
     
@@ -282,6 +333,9 @@ if __name__=="__main__":
 #    rotation_experiment()
     
     #Do the alpha loss function experiment
-    alpha_experiment()
+#    alpha_experiment()
+    
+    #Do the successive hold out digits experiment
+    digits_out_experiment()
     
     #Do experiment with ...
