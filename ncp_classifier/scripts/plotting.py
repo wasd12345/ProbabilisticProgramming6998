@@ -28,8 +28,12 @@ EXPERIMENT_NAME = 'rotate'
 # =============================================================================
 # MAIN PLOTTING
 # =============================================================================
+savedir = os.path.join('ncp_classifier', 'output', EXPERIMENT_NAME)
+if not os.path.exists(savedir):
+    os.makedirs(savedir)
 prefix = 'log_ncp_on' if MODE == 'ncp_on' else 'log_ncp_off'
-data_list = [i for i in os.listdir() if i.endswith('.p') and (i.find(EXPERIMENT_NAME)>=0) and (i.find(prefix)>=0)]
+logdir = os.path.join('ncp_classifier', 'logs')
+data_list = [os.path.join(logdir,i) for i in os.listdir(logdir) if i.endswith('.p') and (i.find(EXPERIMENT_NAME)>=0) and (i.find(prefix)>=0)]
 print(data_list)
 
 
@@ -78,8 +82,8 @@ for dd in data_list:
     ax0.set_ylabel('Entropy')
     ax0.set_xlabel('Iterations')
     ax0.legend()
-    fig.savefig(f'ncp_loss_{exp}.pgf', bbox_inches = 'tight')
-    fig.savefig(f'ncp_loss_{exp}.pdf', bbox_inches = 'tight')
+    fig.savefig(os.path.join(savedir,f'ncp_loss_{exp}.pgf'), bbox_inches = 'tight')
+    fig.savefig(os.path.join(savedir,f'ncp_loss_{exp}.pdf'), bbox_inches = 'tight')
     
     fig = plt.figure(figsize = (6, 4))
     ax0 = fig.add_subplot(111)
@@ -103,5 +107,5 @@ for dd in data_list:
     ax0.legend()
     ax0.set_ylabel('Loss')
     ax0.set_xlabel('Iterations')
-    fig.savefig(f'losses_{exp}.pgf', bbox_inches = 'tight')
-    fig.savefig(f'losses_{exp}.pdf', bbox_inches = 'tight')
+    fig.savefig(os.path.join(savedir,f'losses_{exp}.pgf'), bbox_inches = 'tight')
+    fig.savefig(os.path.join(savedir,f'losses_{exp}.pdf'), bbox_inches = 'tight')

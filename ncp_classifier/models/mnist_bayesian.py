@@ -5,7 +5,7 @@ from skimage import transform
 from tensorflow.examples.tutorials.mnist import input_data
 import tensorflow as tf
 mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
-from ncp.datasets.mnist import load_mnist
+from ncp_classifier.datasets.mnist import load_mnist
 import pickle
 
 from tensorflow_probability import distributions as tfd

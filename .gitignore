@@ -1,0 +1,8 @@
+ncp_classifier/logs/
+ncp_classifier/output/
+
+**/.pkl
+**/.p
+**/.pyc
+**/.gz
+**/__pycache__/

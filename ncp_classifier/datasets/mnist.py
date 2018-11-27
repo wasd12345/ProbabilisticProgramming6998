@@ -2,7 +2,7 @@ import numpy as np
 from urllib import request
 import gzip
 import pickle
-from ncp import tools
+import os
 
 filename = [
 ["training_images","train-images-idx3-ubyte.gz"],
@@ -15,18 +15,18 @@ def download_mnist():
     base_url = "http://yann.lecun.com/exdb/mnist/"
     for name in filename:
         print("Downloading "+name[1]+"...")
-        request.urlretrieve(base_url+name[1], name[1])
+        request.urlretrieve(base_url+name[1], os.path.join('ncp_classifier','datasets',name[1]))
     print("Download complete.")
 
 def save_mnist():
     mnist = {}
     for name in filename[:2]:
-        with gzip.open(name[1], 'rb') as f:
+        with gzip.open(os.path.join('ncp_classifier','datasets',name[1]), 'rb') as f:
             mnist[name[0]] = np.frombuffer(f.read(), np.uint8, offset=16).reshape(-1,28*28)
     for name in filename[-2:]:
-        with gzip.open(name[1], 'rb') as f:
+        with gzip.open(os.path.join('ncp_classifier','datasets',name[1]), 'rb') as f:
             mnist[name[0]] = np.frombuffer(f.read(), np.uint8, offset=8)
-    with open("mnist.pkl", 'wb') as f:
+    with open("./ncp_classifier/datasets/mnist.pkl", 'wb') as f:
         pickle.dump(mnist,f)
     print("Save complete.")
 
@@ -37,7 +37,7 @@ def init():
 def load_mnist():
     #download_mnist()
     #save_mnist()
-    with open("./ncp/datasets/mnist.pkl",'rb') as f:
+    with open("./ncp_classifier/datasets/mnist.pkl",'rb') as f:
         mnist = pickle.load(f)
     training_images = mnist['training_images']
     training_labels = mnist['training_labels']

@@ -5,14 +5,15 @@ from skimage import transform
 from tensorflow.examples.tutorials.mnist import input_data
 import tensorflow as tf
 mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
-from ncp.datasets.mnist import load_mnist
+from ncp_classifier.datasets.mnist import load_mnist
 import pickle
+import os
 
 
 ##################
 # Some hyperparameters
 learning_rate = 0.0001
-training_epochs = 5
+training_epochs = 2#5
 batch_size = 100
 display_step = 1
 digits_to_omit = [9] #[8,9 ] #use 8,9 to not mess up label indexing
@@ -256,7 +257,11 @@ def run_single(ood_transformations,experiment_suffix):
         # Calculate accuracy
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
         print("Accuracy:", accuracy.eval({id_images_: id_images, id_labels_: id_labels}))
-        pickle.dump(logging, open( f"log_ncp_on__{experiment_suffix}.p", "wb" ) )
+        logdir = os.path.join('ncp_classifier', 'logs')
+        if not os.path.exists(logdir):
+            os.mkdir(logdir)
+        logpath = os.path.join(logdir, f"log_ncp_on__{experiment_suffix}.p")
+        pickle.dump(logging, open(logpath, "wb" ) )
 
 
 

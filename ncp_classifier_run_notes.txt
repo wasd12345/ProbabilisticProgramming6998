@@ -1,0 +1,27 @@
+#setup / run notes for ncp_classifier experiments:
+
+
+# 1. Set up conda environment
+conda create -n ProbPro python=3.6
+activate ProbPro
+
+# 2. install packages...
+#will make a requirements.txt ...
+
+
+# 3. clone our git repo
+mkdir ProbPro6998
+cd ProbPro6998
+git clone https://github.com/wasd12345/ProbabilisticProgramming6998.git
+cd ProbabilisticProgramming6998
+
+
+# 4. download MNIST data:
+python -m ncp_classifier.datasets.mnist
+
+# 5. run deterministic network on MNIST:
+python -m ncp_classifier.models.mnist_det
+python -m ncp_classifier.scripts.plotting
+
+# 6. run Bayesian network on MNIST:
+python -m ncp_classifier.models.mnist_bayesian
