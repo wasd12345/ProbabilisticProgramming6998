@@ -149,11 +149,11 @@ def run_single(digits_to_omit, ood_transformations, alpha, experiment_suffix):
                                     id_labels_: id_batch_labels,
                                     od_images_: od_batch_images,
                                     od_labels_: od_batch_labels})
-                om_entropy_, om_entropy_std_ = sess.run([id_ncp_loss,id_ncp_std],
-                        feed_dict = {id_images_: om_images,
-                                    id_labels_: om_labels,
-                                    od_images_: od_batch_images,
-                                    od_labels_: od_batch_labels}) #Only interested in entropy of omitted data            
+                #om_entropy_, om_entropy_std_ = sess.run([id_ncp_loss,id_ncp_std],
+                #        feed_dict = {id_images_: om_images,
+                #                    id_labels_: om_labels,
+                #                    od_images_: od_batch_images,
+                #                    od_labels_: od_batch_labels}) #Only interested in entropy of omitted data            
             
                 
                 # Compute average standard loss
@@ -167,11 +167,11 @@ def run_single(digits_to_omit, ood_transformations, alpha, experiment_suffix):
                     #Uncertainty (entropy) losses
                     logging['id_ncp_loss'].append(id_ncp_loss_)
                     logging['od_ncp_loss'].append(od_ncp_loss_)
-                    logging['om_ncp_loss'].append(om_entropy_)
+                    #logging['om_ncp_loss'].append(om_entropy_)
                     #Std's pf those uncertainty (entropy) losses
                     logging['id_ncp_std'].append(id_ncp_std_)
                     logging['od_ncp_std'].append(od_ncp_std_)
-                    logging['om_ncp_std'].append(om_entropy_std_)
+                    #logging['om_ncp_std'].append(om_entropy_std_)
                     
 #                    print('id entropy loss: ',id_ncp_loss_, '   id entropy std: ', id_ncp_std_)
 #                    print('od entropy loss: ',od_ncp_loss_, '   od entropy std: ', od_ncp_std_)
@@ -183,6 +183,13 @@ def run_single(digits_to_omit, ood_transformations, alpha, experiment_suffix):
             if epoch % display_step == 0:
                 print("Epoch:", '%04d' % (epoch+1), "cost={:.9f}".format(avg_cost))
         print("Optimization Finished!")
+        om_entropy_, om_entropy_std_ = sess.run([id_ncp_loss,id_ncp_std],
+                feed_dict = {id_images_: om_images,
+                            id_labels_: om_labels,
+                            od_images_: od_batch_images,
+                            od_labels_: od_batch_labels}) #Only interested in entropy of omitted data            
+        logging['om_ncp_loss'].append(om_entropy_)
+        logging['om_ncp_std'].append(om_entropy_std_)
     
 
         # Test model
