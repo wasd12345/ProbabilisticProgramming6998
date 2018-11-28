@@ -34,6 +34,7 @@ if not os.path.exists(savedir):
 prefix = 'log_ncp_on' if MODE == 'ncp_on' else 'log_ncp_off'
 logdir = os.path.join('ncp_classifier', 'logs')
 data_list = [os.path.join(logdir,i) for i in os.listdir(logdir) if i.endswith('.p') and (i.find(EXPERIMENT_NAME)>=0) and (i.find(prefix)>=0)]
+data_list.sort()
 print(data_list)
 
 
@@ -180,6 +181,8 @@ if EXPERIMENT_NAME=='alpha' or EXPERIMENT_NAME=='digout':
         plt.title('Entropy as a function of alpha\n(inverse weighting of entropy term)')
         ax0 = fig.add_subplot(111)
         #In-distribution entropy
+        print(id_entropy_mean)
+        print(alphas)
         ax0.semilogx(alphas, id_entropy_mean,
                 markersize = markersize,
                 markerfacecolor = 'b',
