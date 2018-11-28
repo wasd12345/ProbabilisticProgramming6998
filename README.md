@@ -1,4 +1,8 @@
-# Noise Contrastive Priors
+# Probabilistic Programming 6998 Final Project
+
+Our project extends the ideas of Noise Contrastive Priors to the classification setting. It is based on:
+
+## Noise Contrastive Priors
 
 This project contains the source code for Noise Contrastive Priors (NCP) by
 Danijar Hafner, Dustin Tran, Alex Irpan, Timothy Lillicrap, James Davidson.
