@@ -6,8 +6,7 @@ conda create -n ProbPro python=3.6
 activate ProbPro
 
 # 2. install packages...
-#will make a requirements.txt ...
-
+#We generated an example "requirements.txt" for you by doing pip freeze.
 
 # 3. clone our git repo
 mkdir ProbPro6998
