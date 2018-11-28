@@ -173,10 +173,10 @@ def run_single(digits_to_omit, ood_transformations, alpha, experiment_suffix):
                     logging['od_ncp_std'].append(od_ncp_std_)
                     logging['om_ncp_std'].append(om_entropy_std_)
                     
-                    print('id entropy loss: ',id_ncp_loss_, '   id entropy std: ', id_ncp_std_)
-                    print('od entropy loss: ',od_ncp_loss_, '   od entropy std: ', od_ncp_std_)
-                    print('om entropy loss: ',om_entropy_, '   om entropy std: ', om_entropy_std_)
-                    print()
+#                    print('id entropy loss: ',id_ncp_loss_, '   id entropy std: ', id_ncp_std_)
+#                    print('od entropy loss: ',od_ncp_loss_, '   od entropy std: ', od_ncp_std_)
+#                    print('om entropy loss: ',om_entropy_, '   om entropy std: ', om_entropy_std_)
+#                    print()
     
             #print(logits_[0])
             # Display logs per epoch step
