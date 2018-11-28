@@ -203,23 +203,19 @@ def run_single(digits_to_omit, ood_transformations, alpha, experiment_suffix):
                     logging['id_ncp_std'].append(id_ncp_std_)
                     logging['od_ncp_std'].append(od_ncp_std_)
                     # logging['om_ncp_std'].append(om_entropy_std_)
-                    print('id entropy loss: ',id_ncp_loss_, '   id entropy std: ', id_ncp_std_)
-                    print('od entropy loss: ',od_ncp_loss_, '   od entropy std: ', od_ncp_std_)
-                    # print('om entropy loss: ',om_entropy_, '   om entropy std: ', om_entropy_std_)
+                    print('id entropy loss: ', id_ncp_loss_, '   id entropy std: ', id_ncp_std_)
+                    print('od entropy loss: ', od_ncp_loss_, '   od entropy std: ', od_ncp_std_)
                     print()
-            #print(logits_[0])
-            # Display logs per epoch step
             if epoch % display_step == 0:
                 print("Epoch:", '%04d' % (epoch+1), "cost={:.9f}".format(avg_cost))
         print("Optimization Finished!")
-        om_entropy_, om_entropy_std_ = sess.run([id_ncp_loss,id_ncp_std],
-                feed_dict = {id_images_: om_images,
-                            id_labels_: om_labels,
-                            od_images_: od_batch_images,
-                            od_labels_: od_batch_labels}) #Only interested in entropy of omitted data            
+        om_entropy_, om_entropy_std_ = sess.run([id_ncp_loss, id_ncp_std],
+                feed_dict={id_images_: om_images,
+                    id_labels_: om_labels,
+                    od_images_: od_batch_images,
+                    od_labels_: od_batch_labels}) # Only interested in entropy of omitted data
         logging['om_ncp_loss'].append(om_entropy_)
         logging['om_ncp_std'].append(om_entropy_std_)
-    
 
         # Test model
         pred = tf.nn.softmax(id_logits)  # Apply softmax to logits
@@ -232,14 +228,8 @@ def run_single(digits_to_omit, ood_transformations, alpha, experiment_suffix):
         od_correct_prediction = tf.equal(tf.argmax(od_pred, 1), tf.argmax(tf.one_hot(od_labels_, logging['output_layer_size']), 1))
         od_accuracy = tf.reduce_mean(tf.cast(od_correct_prediction, "float"))
         logging['od_acc'] = od_accuracy.eval({od_images_: od_images, od_labels_: od_labels})
-        
         print("Full id_acc:", logging['id_acc'])
         print("Full od_acc:", logging['od_acc'])
-        
-        #This should always be 0 for an unseen digit since our classifier can never choose this label
-#        print("Full om_acc:", logging['om_acc'])
-            
-        
         #Calculate mean + std of entropy over all 3 full datasets:
         _, id_entropy_mean, od_entropy_mean, id_entropy_std, od_entropy_std = sess.run(
                 [train_op, id_ncp_loss, od_ncp_loss, id_ncp_std, od_ncp_std],
@@ -247,14 +237,11 @@ def run_single(digits_to_omit, ood_transformations, alpha, experiment_suffix):
                             id_labels_: id_labels,
                             od_images_: od_images,
                             od_labels_: od_labels})
-        
         logging['id_entropy_mean'] = id_entropy_mean
         logging['id_entropy_std'] = id_entropy_std
         logging['od_entropy_mean'] = od_entropy_mean
-        logging['od_entropy_std'] = od_entropy_std        
+        logging['od_entropy_std'] = od_entropy_std
         #"om_ncp_loss" and "om_ncp_std" are already the whole set values for om
-        
-        
         logdir = os.path.join('ncp_classifier', 'logs')
         if not os.path.exists(logdir):
             os.mkdir(logdir)
@@ -272,25 +259,27 @@ def rotation_experiment():
     #Experiment parameters:
     EXPERIMENT_NAME = 'rotate'
     ROTATIONS_UPPER_BOUND = [i*10. for i in range(10)]
-    DIGITS_TO_OMIT = [8,9]
+    DIGITS_TO_OMIT = [8, 9]
     ALPHA = 1e-4 # weight factor between both contributions to the loss
-    
     for i, UB in enumerate(ROTATIONS_UPPER_BOUND):
         #For each experiment: seed -> same weights init, same data splits
         seed(RANDOM_SEED)
         np.random.seed(RANDOM_SEED)
         tf.random.set_random_seed(RANDOM_SEED)
-        
-        experiment_suffix = f"{EXPERIMENT_NAME}_{i}" 
-        ood_transformations = {'rotate':[0.,UB],
-                               #'translate':None,
-                               #'scale':[],
-                               #'affine_random':None,
-                               #'perspective_random':None,
-                               #'swirl':[],
-                               #'noise':None,
-                               }        
-        run_single(DIGITS_TO_OMIT, ood_transformations,ALPHA,experiment_suffix)
+        experiment_suffix = f"{EXPERIMENT_NAME}_{i}"
+        ood_transformations = {'rotate': [0., UB],
+                               # 'translate':None,
+                               # 'scale':[],
+                               # 'affine_random':None,
+                               # 'perspective_random':None,
+                               # 'swirl':[],
+                               # 'noise':None,
+                               }
+        run_single(
+                DIGITS_TO_OMIT,
+                ood_transformations,
+                ALPHA,
+                experiment_suffix)
         tf.reset_default_graph()
 
 
@@ -303,23 +292,19 @@ def alpha_experiment():
     #Experiment parameters:
     EXPERIMENT_NAME = 'alpha'
     alpha_list = np.logspace(-7., 0., 8)
-    DIGITS_TO_OMIT = [8,9]
-    
+    DIGITS_TO_OMIT = [8, 9]
     for i, a in enumerate(alpha_list):
         print('alpha:', a)
         #For each experiment: seed -> same weights init, same data splits
         seed(RANDOM_SEED)
         np.random.seed(RANDOM_SEED)
         tf.random.set_random_seed(RANDOM_SEED)
-        
         experiment_suffix = f"{EXPERIMENT_NAME}_{i}"
         ALPHA = alpha_list[i]
         THETA = 60.
-        ood_transformations = {'rotate':[-THETA,THETA]}
-        
-        run_single(DIGITS_TO_OMIT,ood_transformations,ALPHA,experiment_suffix)
+        ood_transformations = {'rotate': [-THETA, THETA]}
+        run_single(DIGITS_TO_OMIT, ood_transformations, ALPHA, experiment_suffix)
         tf.reset_default_graph()
-        
 
 
 def digits_out_experiment():
@@ -336,7 +321,7 @@ def digits_out_experiment():
                 #[4,5,6,7,8,9],
                 #[2,3,4,5,6,7,8,9]
                 ]
-    
+
     #Experiment parameters:
     EXPERIMENT_NAME = 'digout'
     alpha_list = np.logspace(-7., -4., 5)
@@ -345,33 +330,25 @@ def digits_out_experiment():
         for mm in d_ood:
             digs += str(mm)
         digs += 'out'
-        
         for i, a in enumerate(alpha_list):
             print('alpha:', a)
-            #For each experiment: seed -> same weights init, same data splits
+            # For each experiment: seed -> same weights init, same data splits
             seed(RANDOM_SEED)
             np.random.seed(RANDOM_SEED)
             tf.random.set_random_seed(RANDOM_SEED)
-            
             experiment_suffix = f"{EXPERIMENT_NAME}_{digs}_{i}"
             ALPHA = alpha_list[i]
             THETA = 90.
-            ood_transformations = {'rotate':[45,135]}
-            
+            ood_transformations = {'rotate':[45, 135]}
             run_single(d_ood, ood_transformations, ALPHA, experiment_suffix)
             tf.reset_default_graph()
 
 
 
 if __name__=="__main__":
-    
-    #Do the experiment with various angles of rotations:
-#    rotation_experiment()
-    
-    #Do the alpha loss function experiment
-#    alpha_experiment()
-    
-    #Do the successive hold out digits experiment
+    # Do the experiment with various angles of rotations:
+    # rotation_experiment()
+    # Do the alpha loss function experiment
+    # alpha_experiment()
+    # Do the successive hold out digits experiment
     digits_out_experiment()
-    
-    #Do experiment with ...
